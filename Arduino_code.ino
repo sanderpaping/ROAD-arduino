@@ -1,125 +1,235 @@
-/*
 #include <Adafruit_NeoPixel.h>
  
-#define PIN 6
+#define RING 6
+#define TEMP A0
+#define LIGHT A1
+
  
-// Parameter 1 = number of pixels in strip
-// Parameter 2 = pin number (most are valid)
-// Parameter 3 = pixel type flags, add together as needed:
-//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, PIN, NEO_GRB + NEO_KHZ800);
- 
+Adafruit_NeoPixel ring = Adafruit_NeoPixel(16, RING, NEO_GRB + NEO_KHZ800);
+
+
+//Kleuren definieren
+uint32_t red = ring.Color(255, 0, 0);  // red
+uint32_t green = ring.Color(0, 255, 0);  // green
+uint32_t blue = ring.Color(0, 0, 255);  // blue
+uint32_t yellow = ring.Color(255, 255, 0);  // yellow
+uint32_t magenta = ring.Color(255, 0, 255); // Magenta
+uint32_t defaultColor = ring.Color(255,165,0);
+uint32_t off = ring.Color(0,0,0);
+
+String commands[100];
+int countCommands = 0;
+
+//Snelheid tussen kleuren wisselen
+int durationChange = 50;
+int helderheid = 0;
+
+
 void setup() {
-  strip.begin();
-  strip.setBrightness(30); //adjust brightness here
-  strip.show(); // Initialize all pixels to 'off'
+
+  //Start serial
+  Serial.begin(9600);
+  
+  //Neopixel ring
+  ring.begin();
+  ring.setBrightness(255); //adjust brightness here
+  ring.show(); // Initialize all pixels to 'off'
+
+  //Temperatuur sensor
+  pinMode(TEMP, INPUT);
+
+  //Ligt sensor
+  pinMode(LIGHT, INPUT);
 }
- 
+
+
+//---------------------------------------------//
+//-----------------MAIN LOOP------------------//
+//-------------------------------------------// 
 void loop() {
-  // Some example procedures showing how to display to the pixels:
-  colorWipe(strip.Color(255, 0, 0), 50); // Red
-  colorWipe(strip.Color(0, 255, 0), 50); // Green
-  colorWipe(strip.Color(0, 0, 255), 50); // Blue
-  rainbow(16);
-  rainbowCycle(16);
+  readSerial();
 }
  
+
+//---------------------------------------------//
+//-------------NEO PIXEL RING-----------------//
+//-------------------------------------------//
+
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip.numPixels(); i++) {
-      strip.setPixelColor(i, c);
-      strip.show();
+  for(uint16_t i=0; i<ring.numPixels(); i++) {
+      ring.setPixelColor(i, c);
+      ring.show();
       delay(wait);
   }
 }
- 
-void rainbow(uint8_t wait) {
-  uint16_t i, j;
- 
-  for(j=0; j<256; j++) {
-    for(i=0; i<strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel((i+j) & 255));
+
+//Zet de ring in een kleur die eerder in de code gedifineerd staan
+void setColor(uint32_t color){
+
+  for(int i=0; i<ring.numPixels(); i++) {
+      ring.setPixelColor(i, color);
+      ring.show();
     }
-    strip.show();
-    delay(wait);
-  }
+  
 }
- 
-// Slightly different, this makes the rainbow equally distributed throughout
-void rainbowCycle(uint8_t wait) {
-  uint16_t i, j;
- 
-  for(j=0; j<256*5; j++) { // 5 cycles of all colors on wheel
-    for(i=0; i< strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
-    }
-    strip.show();
-    delay(wait);
+
+void chillMode(int wait){
+  while (Serial.available() == 0){
+    colorWipe(red, wait);
+    colorWipe(green, wait);
+    colorWipe(yellow, wait);
+    colorWipe(magenta, wait);
   }
 }
 
+void turnOff(){
+  for(int i=0; i<ring.numPixels(); i++) {
+      ring.setPixelColor(i, (0,0,0));
+      ring.show();
+    }
+}
+
+void flicker(){
+  while (Serial.available() == 0){
+    setColor(red);
+    delay(100);
+    turnOff();
+    delay(100);
+  }
+}
+
+void turnColor(uint32_t color, int wait){
+  colorWipe(color, wait);
+}
+
+
+void gotMultipleMessages(String input){
+  commands[countCommands] = input;
+  countCommands = countCommands + 1;
+}
+
+//---------------------------------------------//
+//-------------SERIEEL UITLEZEN---------------//
+//-------------------------------------------//
+
+void readSerial(){
+  if(Serial.available() > 0){
+    String serialInput = Serial.readString();
+
+    if(serialInput == "clear"){
+      memset(commands,0,sizeof(commands));
+      countCommands = 0;
+    } else {
+      gotMultipleMessages(serialInput);
+    }
+        
+    if(serialInput == "temperatuur"){
+      getTemp(0);
+    }else if(serialInput == "light"){
+      getLight();
+    } else if(serialInput == "chill"){
+      chillMode(100);
+    } else if (serialInput == "off"){
+      turnColor(off, durationChange);
+    } else if (serialInput == "flikker"){
+      flicker();
+    } else if (serialInput == "on"){
+      setColor(red);
+    } else if (serialInput == "array"){
+      for(int i=0; i<= countCommands; i++){
+        Serial.println(commands[i]);
+      }
+    } else if(serialInput == "green"){
+      turnColor(green, durationChange);
+    } else if(serialInput == "red"){
+      turnColor(red, durationChange);
+    } else if(serialInput == "blue"){
+      turnColor(blue, durationChange);
+    } else if(serialInput == "yellow"){
+      turnColor(yellow, durationChange);
+    } else if(serialInput == "magenta"){
+      turnColor(magenta, durationChange);
+    }
+ }
 
  
-// Input a value 0 to 255 to get a color value.
-// The colours are a transition r - g - b - back to r.
-uint32_t Wheel(byte WheelPos) {
-  if(WheelPos < 85) {
-   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-  } else if(WheelPos < 170) {
-   WheelPos -= 85;
-   return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+}
+
+//---------------------------------------------//
+//----------------Licht SENSOR----------------//
+//-------------------------------------------//
+
+void getLight(){
+  int licht = (analogRead(LIGHT));
+  Serial.println(licht);
+  
+  if(licht < 990){    
+    turnColor(red, durationChange);
   } else {
-   WheelPos -= 170;
-   return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
-  }
+    turnColor(green, durationChange);
+  }  
 }
 
-*/
-
-
-
-
-const int ledPin = 13;
-const int ldrPin = A0;
-float temp;
-
-void setup() 
-{
-
-  Serial.begin(9600);
+void getLightDemo(){
+  int licht = (analogRead(LIGHT));
+  Serial.println(licht);
   
-  pinMode(ledPin, OUTPUT);
-  
-  pinMode(ldrPin, INPUT);
-
+  if(licht < 950){
+    turnColor(red, durationChange);
+  }else {
+    turnColor(off, durationChange);
+  }
+  delay(10);  
 }
 
-void loop() 
-{
+//---------------------------------------------//
+//-------------TEMPERATUUR SENSOR-------------//
+//-------------------------------------------//
 
-  int ldrStatus = analogRead(ldrPin);
-  
-  if (ldrStatus <=900) {
-  
-    digitalWrite(ledPin, HIGH);
-    
-    Serial.println("LDR is DARK, LED is ON");
-  }
-  
-  else 
-  {
-    
-    digitalWrite(ledPin, LOW);
-    
-    Serial.println(ldrStatus);
-  
-  }
+void getTemp(int wait){
+  int temp = ((analogRead(TEMP)* 500)/1024);
 
-  temp = analogRead(3)*500/1024.0;
- 
+  if(temp < -10) {
+    temp == temp * -1;
+  }  
   Serial.println(temp);
-  delay(500);
+  delay(wait);
 }
+
+//---------------------------------------------//
+//-------------TEST---------------------------//
+//-------------------------------------------//
+
+
+void stripString(String input){
+    
+    // Declare the variables of the parts of the String
+    String value1, value2;
+ 
+    // For loop which will separate the String in parts
+    // and assign them the the variables we declare
+    for (int i = 0; i < input.length(); i++) {
+      if (input.substring(i, i+1) == "&") {
+        value1 = input.substring(0, i);
+        value2= input.substring(i+1);
+        break;
+      }
+    }
+     
+    // Sending the parts to Serial Monitor
+    Serial.println(value1);
+    Serial.println(value2);
+}
+
+
+
+
+
+
+ 
+
+ 
+
+ 
+
