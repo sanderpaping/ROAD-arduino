@@ -1,0 +1,280 @@
+#include <Adafruit_NeoPixel.h>
+ 
+#define RING 6
+#define TEMP A0
+#define LIGHT A1
+
+ 
+Adafruit_NeoPixel ring = Adafruit_NeoPixel(16, RING, NEO_GRB + NEO_KHZ800);
+
+
+//Kleuren definieren
+uint32_t red = ring.Color(255, 0, 0);  // red
+uint32_t green = ring.Color(0, 255, 0);  // green
+uint32_t blue = ring.Color(0, 0, 255);  // blue
+uint32_t yellow = ring.Color(255, 255, 0);  // yellow
+uint32_t magenta = ring.Color(255, 0, 255); // Magenta
+uint32_t defaultColor = ring.Color(255,165,0);
+uint32_t off = ring.Color(0,0,0);
+
+String commands[100];
+int countCommands = 0;
+
+//Snelheid tussen kleuren wisselen
+int durationChange = 50;
+int helderheid = 0;
+
+String kleur;
+
+
+void setup() {
+
+  //Start serial
+  Serial.begin(115200);
+  
+  //Neopixel ring
+  ring.begin();
+  ring.setBrightness(255); //adjust brightness here
+  ring.show(); // Initialize all pixels to 'off'
+
+  //Temperatuur sensor
+  pinMode(TEMP, INPUT);
+
+  //Ligt sensor
+  pinMode(LIGHT, INPUT);
+}
+
+
+//---------------------------------------------//
+//-----------------MAIN LOOP------------------//
+//-------------------------------------------// 
+void loop() {
+  readSerial();
+}
+ 
+
+//---------------------------------------------//
+//-------------NEO PIXEL RING-----------------//
+//-------------------------------------------//
+
+// Fill the dots one after the other with a color
+void colorWipe(uint32_t c, uint8_t wait) {
+  for(uint16_t i=0; i<ring.numPixels(); i++) {
+      ring.setPixelColor(i, c);
+      ring.show();
+      delay(wait);
+  }
+}
+
+//Solid color
+void solidColor(){
+  
+}
+
+//Zet de ring in een kleur die eerder in de code gedifineerd staan
+void setColor(uint32_t color){
+
+  for(int i=0; i<ring.numPixels(); i++) {
+      ring.setPixelColor(i, color);
+      ring.show();
+    }
+  
+}
+
+void chillMode(int wait){
+  while (Serial.available() == 0){
+    colorWipe(red, wait);
+    colorWipe(green, wait);
+    colorWipe(yellow, wait);
+    colorWipe(magenta, wait);
+  }
+}
+
+void turnOff(){
+  for(int i=0; i<ring.numPixels(); i++) {
+      ring.setPixelColor(i, (0,0,0));
+      ring.show();
+    }
+}
+
+void flicker(){
+  while (Serial.available() == 0){
+    setColor(red);
+    delay(100);
+    turnOff();
+    delay(100);
+  }
+}
+
+void turnColor(uint32_t color, int wait){
+  colorWipe(color, wait);
+}
+
+
+void gotMultipleMessages(String input){
+  commands[countCommands] = input;
+  countCommands = countCommands + 1;
+}
+
+//---------------------------------------------//
+//-------------SERIEEL UITLEZEN---------------//
+//-------------------------------------------//
+
+void readSerial(){
+  if(Serial.available() > 0){
+    String serialInput = Serial.readString();
+    if(serialInput.indexOf("&") > 0){
+
+    //---Serial input strippen ----//
+      // Declare the variables of the parts of the String
+      String value1, value2;
+   
+      // For loop which will separate the String in parts
+      // and assign them the the variables we declare
+      for (int i = 0; i < serialInput.length(); i++) {
+        if (serialInput.substring(i, i+1) == "&") {
+          value1 = serialInput.substring(0, i);
+          value2= serialInput.substring(i+1);
+          break;
+        }
+      }
+
+
+    //---------KLEUREN------------//
+    if(value1 == "red"){
+      turnColor(red, durationChange);
+    } else if(value1 == "green"){
+      turnColor(green, durationChange);
+    } else if(value1 == "blue"){
+      turnColor(blue, durationChange);
+      Serial.println("Yeah nikker");
+    } else if(value1 == "yellow"){
+      turnColor(yellow, durationChange);
+    } else if(value1 == "magenta"){
+      turnColor(magenta, durationChange);
+    }
+
+    //-------MODE----------------//
+    //solid flikker on off 
+    if(value2 == "on"){
+      
+    }
+
+    } else {
+    
+    }
+
+    
+    if(serialInput == "clear"){
+      memset(commands,0,sizeof(commands));
+      countCommands = 0;
+    } else {
+      gotMultipleMessages(serialInput);
+    }
+        
+    if(serialInput == "temperatuur"){
+      getTemp(0);
+    }else if(serialInput == "light"){
+      getLight();
+    } else if(serialInput == "chill"){
+      chillMode(100);
+    } else if (serialInput == "off"){
+      turnColor(off, durationChange);
+    } else if (serialInput == "flikker"){
+      flicker();
+    } else if (serialInput == "array"){
+      for(int i=0; i<= countCommands; i++){
+        Serial.println(commands[i]);
+      }
+    } else if(serialInput == "green"){
+      turnColor(green, durationChange);
+    } else if(serialInput == "red"){
+      turnColor(red, durationChange);
+    } else if(serialInput == "blue"){
+      turnColor(blue, durationChange);
+    } else if(serialInput == "yellow"){
+      turnColor(yellow, durationChange);
+    } else if(serialInput == "magenta"){
+      turnColor(magenta, durationChange);
+    }
+ }
+
+ 
+}
+
+//---------------------------------------------//
+//----------------Licht SENSOR----------------//
+//-------------------------------------------//
+
+void getLight(){
+  int licht = (analogRead(LIGHT));
+
+  Serial.print("light:");
+  Serial.print(licht);
+  Serial.println();
+  
+  /*if(licht < 970){    
+    turnColor(red, durationChange);
+  } else {
+    turnColor(green, durationChange);
+  }  */
+}
+
+void getLightDemo(){
+  int licht = (analogRead(LIGHT));
+  Serial.println(licht);
+  
+  if(licht < 950){
+    turnColor(red, durationChange);
+  }else {
+    turnColor(off, durationChange);
+  }
+  delay(10);  
+}
+
+//---------------------------------------------//
+//-------------TEMPERATUUR SENSOR-------------//
+//-------------------------------------------//
+
+void getTemp(int wait){
+  int temp = ((analogRead(TEMP)* 500)/1024);
+
+  if(temp < -10) {
+    temp == temp * -1;
+  } 
+  Serial.print("temp:"); 
+  Serial.print(temp);
+  Serial.println();
+
+  delay(wait);
+}
+
+//---------------------------------------------//
+//-------------TEST---------------------------//
+//-------------------------------------------//
+
+
+void stripString(){
+
+    // Create a new String object to be split
+    String input = "red&solid";
+    
+    // Declare the variables of the parts of the String
+    String kleur, mode;
+ 
+    // For loop which will separate the String in parts
+    // and assign them the the variables we declare
+    for (int i = 0; i < input.length(); i++) {
+      if (input.substring(i, i+1) == "&") {
+        kleur = input.substring(0, i);
+        mode= input.substring(i+1);
+        break;
+      }
+    }
+     
+    // Sending the parts to Serial Monitor
+   // Serial.println(kleur);
+   // Serial.println(mode);
+}
+
+
