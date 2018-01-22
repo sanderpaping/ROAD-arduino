@@ -49,8 +49,8 @@ void setup() {
 
 bool sendData(){
  if(millis() - old_time > 10000){
-   return true;
    old_time = millis();
+   return true;
  }
  return false;
 }
